@@ -48,62 +48,98 @@ registerAppResource(
   </head>
   <body>
     <div id="app">Loading menu…</div>
-    <script>
-      (function () {
-        var root = document.getElementById("app");
+  <script>
+  (function () {
+    var root = document.getElementById("app");
 
-        function renderError(message) {
-          root.innerHTML = '<div class="error">' + message + '</div>';
+    function escapeHtml(value) {
+      return String(value)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
+    function renderError(message) {
+      root.innerHTML = '<div class="error">' + escapeHtml(message) + '</div>';
+    }
+
+    function renderMenu(data) {
+      if (!data || !data.categories) {
+        renderError("No structured content received.");
+        return;
+      }
+
+      root.innerHTML =
+        '<div class="title">' + escapeHtml(data.storeName || "Cozy Crumbs Bakery") + '</div>' +
+        data.categories.map(function (category) {
+          return (
+            '<div class="section">' +
+              '<h2>' + escapeHtml(category.name) + '</h2>' +
+              '<div class="grid">' +
+                category.items.map(function (item) {
+                  return (
+                    '<div class="card">' +
+                      '<img src="' + escapeHtml(item.fullImageUrl) + '" alt="' + escapeHtml(item.name) + '" />' +
+                      '<div class="name">' + escapeHtml(item.name) + '</div>' +
+                      '<div class="price">$' + Number(item.price).toFixed(2) + '</div>' +
+                      (item.note ? '<div class="note">' + escapeHtml(item.note) + '</div>' : '') +
+                    '</div>'
+                  );
+                }).join('') +
+              '</div>' +
+            '</div>'
+          );
+        }).join('');
+    }
+
+    function getToolOutput() {
+      return window.openai && window.openai.toolOutput
+        ? window.openai.toolOutput
+        : null;
+    }
+
+    if (!window.openai) {
+      renderError("window.openai is not available.");
+      return;
+    }
+
+    // Initial render from current tool output
+    renderMenu(getToolOutput());
+
+    // Recommended update path: openai:set_globals
+    window.addEventListener(
+      "openai:set_globals",
+      function (event) {
+        var data =
+          (event.detail &&
+            event.detail.globals &&
+            event.detail.globals.toolOutput) ||
+          getToolOutput();
+        renderMenu(data);
+      },
+      { passive: true }
+    );
+
+    // Fallback: explicit tool-result notifications
+    window.addEventListener(
+      "message",
+      function (event) {
+        var payload = event.data;
+        if (
+          payload &&
+          payload.method === "ui/notifications/tool-result" &&
+          payload.params &&
+          payload.params.structuredContent
+        ) {
+          renderMenu(payload.params.structuredContent);
         }
-
-        function renderMenu(data) {
-          if (!data || !data.categories) {
-            renderError("No structured content received.");
-            return;
-          }
-
-          root.innerHTML =
-            '<div class="title">' + (data.storeName || "Cozy Crumbs Bakery") + '</div>' +
-            data.categories.map(function (category) {
-              return (
-                '<div class="section">' +
-                  '<h2>' + category.name + '</h2>' +
-                  '<div class="grid">' +
-                    category.items.map(function (item) {
-                      return (
-                        '<div class="card">' +
-                          '<img src="' + item.fullImageUrl + '" alt="' + item.name + '" />' +
-                          '<div class="name">' + item.name + '</div>' +
-                          '<div class="price">$' + Number(item.price).toFixed(2) + '</div>' +
-                          (item.note ? '<div class="note">' + item.note + '</div>' : '') +
-                        '</div>'
-                      );
-                    }).join('') +
-                  '</div>' +
-                '</div>'
-              );
-            }).join('');
-        }
-
-        if (!window.openai) {
-          renderError("window.openai is not available.");
-          return;
-        }
-
-        if (!window.openai.onStructuredContent) {
-          renderError("window.openai.onStructuredContent is not available.");
-          return;
-        }
-
-        window.openai.onStructuredContent(function (data) {
-          try {
-            renderMenu(data);
-          } catch (err) {
-            renderError("Widget render failed: " + err.message);
-          }
-        });
-      })();
-    </script>
+      },
+      { passive: true }
+    );
+  })();
+</script>
   </body>
 </html>`,
         _meta: {
