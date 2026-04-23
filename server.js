@@ -43,40 +43,86 @@ registerAppResource(
       .name { font-weight: 600; margin-top: 8px; }
       .price { color: #555; margin-top: 4px; }
       .note { color: #777; font-size: 13px; margin-top: 4px; }
+      .error { color: #b00020; white-space: pre-wrap; }
     </style>
   </head>
   <body>
     <div id="app">Loading menu…</div>
     <script>
-      window.openai.onStructuredContent(function (data) {
+      (function () {
         var root = document.getElementById("app");
-        root.innerHTML =
-          '<div class="title">' + data.storeName + '</div>' +
-          data.categories.map(function (category) {
-            return (
-              '<div class="section">' +
-                '<h2>' + category.name + '</h2>' +
-                '<div class="grid">' +
-                  category.items.map(function (item) {
-                    return (
-                      '<div class="card">' +
-                        '<img src="' + item.fullImageUrl + '" alt="' + item.name + '" />' +
-                        '<div class="name">' + item.name + '</div>' +
-                        '<div class="price">$' + Number(item.price).toFixed(2) + '</div>' +
-                        (item.note ? '<div class="note">' + item.note + '</div>' : '') +
-                      '</div>'
-                    );
-                  }).join("") +
-                '</div>' +
-              '</div>'
-            );
-          }).join("");
-      });
+
+        function renderError(message) {
+          root.innerHTML = '<div class="error">' + message + '</div>';
+        }
+
+        function renderMenu(data) {
+          if (!data || !data.categories) {
+            renderError("No structured content received.");
+            return;
+          }
+
+          root.innerHTML =
+            '<div class="title">' + (data.storeName || "Cozy Crumbs Bakery") + '</div>' +
+            data.categories.map(function (category) {
+              return (
+                '<div class="section">' +
+                  '<h2>' + category.name + '</h2>' +
+                  '<div class="grid">' +
+                    category.items.map(function (item) {
+                      return (
+                        '<div class="card">' +
+                          '<img src="' + item.fullImageUrl + '" alt="' + item.name + '" />' +
+                          '<div class="name">' + item.name + '</div>' +
+                          '<div class="price">$' + Number(item.price).toFixed(2) + '</div>' +
+                          (item.note ? '<div class="note">' + item.note + '</div>' : '') +
+                        '</div>'
+                      );
+                    }).join('') +
+                  '</div>' +
+                '</div>'
+              );
+            }).join('');
+        }
+
+        if (!window.openai) {
+          renderError("window.openai is not available.");
+          return;
+        }
+
+        if (!window.openai.onStructuredContent) {
+          renderError("window.openai.onStructuredContent is not available.");
+          return;
+        }
+
+        window.openai.onStructuredContent(function (data) {
+          try {
+            renderMenu(data);
+          } catch (err) {
+            renderError("Widget render failed: " + err.message);
+          }
+        });
+      })();
     </script>
   </body>
 </html>`,
-      },
-    ],
+        _meta: {
+          ui: {
+            prefersBorder: true,
+            domain: "https://cozymcp.onrender.com",
+            csp: {
+              connectDomains: [
+                "https://cozymcp.onrender.com",
+                "https://cozycrumbsbakery-1.vercel.app"
+              ],
+              resourceDomains: [
+                "https://res.cloudinary.com"
+              ]
+            }
+          }
+        }
+      }
+    ]
   })
 );
 
